@@ -9,19 +9,28 @@ path_to_executable = "/global/cfs/cdirs/m1820/rcbk/job_MPI_wrapper.py"
 # Number of instances to run
 total_runs = runs = 2560
 num_instances = 512
-num_per_node = 128
+num_per_node = 64
 
 # Sample parameter values
 # MV: Qs0, gamma
 Qs0_range = 2.0  # from 0 to 2
-gamma_range = 1.5
-offset = 0.5
+gamma_range = 2.
+gamma_offset = 0.5
+ec_exp_range = 2.
+ec_offset = 1./2.718281828459045
+C2_range = 100
+C2_offset = 0.1
 
 # Latin hypercube sampling in the parameter space
-parameters_lhc = lhs(2, samples=runs, criterion='c') * np.array([Qs0_range, gamma_range])
+parameters_lhc = lhs(4, samples=runs, criterion='c') * np.array([Qs0_range, gamma_range, ec_exp_range, C2_range])
 
-# Add an offset only to the second parameter
-parameters_lhc[:, 1] += offset
+# compute ec from ex_exp
+parameters_lhc[:,2] = 10.**parameters_lhc[:,2]
+
+# Add any offsets
+parameters_lhc[:, 1] += gamma_offset
+parameters_lhc[:, 2] += ec_offset
+parameters_lhc[:, 3] += C2_offset
 
 # Slurm script template
 slurm_script = """#!/bin/bash
@@ -31,7 +40,7 @@ slurm_script = """#!/bin/bash
 #SBATCH -e rcbkl.%j.err
 #SBATCH -A m1820
 #SBATCH -t 00:30:00
-#SBATCH --nodes=4
+#SBATCH --nodes=8
 #SBATCH --ntasks={0}
 #SBATCH --ntasks-per-node={1}
 #SBATCH --constraint=cpu
@@ -46,10 +55,10 @@ params = ""
 
 for i in range(runs):
     # Define your command line parameters here
-    Qs0, gamma = parameters_lhc[i]
+    Qs0, gamma, ec, C2 = parameters_lhc[i]
     
-#    params += "-minr 1e-6 -rc BALITSKY -alphas_scaling 14.5 -output datafile_MV_{0} -fast -maxy 5 -ic MV {1} {2} 0.01 1\n".format(i, Qs0, gamma)
-    params += "-minr 1e-6 -rc BALITSKY -alphas_scaling 14.5 -output datafile_GBW_{0} -fast -maxy 5 -ic GBW {1} {2} 0.01\n".format(i, Qs0, gamma)
+    #params += "-minr 1e-6 -rc BALITSKY -alphas_scaling {0} -output datafile_MV_{1} -fast -maxy 5 -ic MV {2} {3} 0.01 {4}\n".format(C2, i, Qs0, gamma, ec)
+    params += "-minr 1e-6 -rc BALITSKY -alphas_scaling {0} -output datafile_GBW_{1} -fast -maxy 5 -ic GBW {2} {3} 0.01\n".format(C2, i, Qs0, gamma)
 
         
 with open("parameters.txt", "w") as run_file:
